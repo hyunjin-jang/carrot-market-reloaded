@@ -11,7 +11,6 @@ const test = async () => {
       user: true,
     },
   });
-  console.log(token);
 };
 
 test();
