@@ -56,5 +56,7 @@ export const login = async (prevState: any, formData: FormData) => {
     session.id = user!.id;
     await session.save();
     redirect("/profile");
+  } else {
+    return { password: ["비밀번호가 틀림"] };
   }
 };
