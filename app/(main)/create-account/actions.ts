@@ -2,6 +2,11 @@
 import { PASSWORD_ERROR_MESSAGE, PASSWORD_MIN_LENGTH, PASSWORD_REGEX } from '@/app/lip/constants';
 import db from '@/app/lip/db';
 import { z } from 'zod';
+import bcrypt from 'bcrypt';
+import { getIronSession } from 'iron-session';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import getSession from '@/app/lip/session';
 
 const checkPassword = ({ password, confirmPassword }: { password: string, confirmPassword: string }) =>
   password === confirmPassword;
@@ -60,4 +65,21 @@ export const createAccount = async (prevState: any, formData: FormData) => {
   if (!result.success) {
     return result.error.flatten().fieldErrors;
   }
+  const hashedPassword = await bcrypt.hash(result.data.password, 12);
+
+  const user = await db.user.create({
+    data: {
+      username: result.data.username,
+      email: result.data.email,
+      password: hashedPassword,
+    },
+    select: {
+      id: true,
+    },
+  });
+  const session = await getSession()
+
+  session.id = user.id;
+  await session.save();
+  redirect("/profile");
 };
