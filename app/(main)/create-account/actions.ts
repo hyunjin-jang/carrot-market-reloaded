@@ -3,47 +3,45 @@ import { PASSWORD_ERROR_MESSAGE, PASSWORD_MIN_LENGTH, PASSWORD_REGEX } from '@/a
 import db from '@/app/lip/db';
 import { z } from 'zod';
 import bcrypt from 'bcrypt';
-import { getIronSession } from 'iron-session';
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import getSession from '@/app/lip/session';
 
 const checkPassword = ({ password, confirmPassword }: { password: string, confirmPassword: string }) =>
   password === confirmPassword;
 
-const checkUniqueUsername = async (username: string) => {
-  const user = await db.user.findUnique({
-    where: {
-      username,
-    },
-    select: {
-      id: true,
-    },
-  });
-  return !Boolean(user);
-};
+// const checkUniqueUsername = async (username: string) => {
+//   const user = await db.user.findUnique({
+//     where: {
+//       username,
+//     },
+//     select: {
+//       id: true,
+//     },
+//   });
+//   return !Boolean(user);
+// };
 
-const checkUniqueEmail = async (email: string) => {
-  const userEmail = await db.user.findUnique({
-    where: {
-      email: email,
-    },
-    select: {
-      id: true,
-    },
-  });
-  return !Boolean(userEmail);
-};
+// const checkUniqueEmail = async (email: string) => {
+//   const userEmail = await db.user.findUnique({
+//     where: {
+//       email: email,
+//     },
+//     select: {
+//       id: true,
+//     },
+//   });
+//   return !Boolean(userEmail);
+// };
 
 const formSchema = z.object({
   username: z
-    .string({ invalid_type_error: "문자열이 아님", required_error: "필수 입력임" })
-    .refine(checkUniqueUsername, { message: "이미 존재하는 이름임" }),
+    .string({ invalid_type_error: "문자열이 아님", required_error: "필수 입력임" }),
+  // .refine(checkUniqueUsername, { message: "이미 존재하는 이름임" }),
   email: z
     .string({ invalid_type_error: "문자열이 아님", required_error: "필수 입력임" })
     .email()
-    .toLowerCase()
-    .refine(checkUniqueEmail, { message: "이미 존재하는 이메일임" }),
+    .toLowerCase(),
+  // .refine(checkUniqueEmail, { message: "이미 존재하는 이메일임" }),
   password: z
     .string({ invalid_type_error: "문자열이 아님", required_error: "필수 입력임" })
     .min(PASSWORD_MIN_LENGTH, "넘 짧음")
@@ -51,7 +49,31 @@ const formSchema = z.object({
   confirmPassword: z
     .string({ invalid_type_error: "문자열이 아님", required_error: "필수 입력임" })
     .min(PASSWORD_MIN_LENGTH, "넘 짧음"),
-}).refine(checkPassword, { message: "비밀번호가 일치하지 않음", path: ["confirmPassword"] });
+})
+  .superRefine(async ({ username }, ctx) => {
+    const user = await db.user.findUnique({
+      where: {
+        username,
+      },
+    });
+    if (user) {
+      ctx.addIssue({ code: 'custom', message: "이미 존재하는 이름임", path: ["username"], fatal: true });
+      return z.NEVER;
+    }
+  })
+  .superRefine(async ({ email }, ctx) => {
+    const user = await db.user.findUnique({
+      where: {
+        email,
+      },
+    });
+    if (user) {
+      ctx.addIssue({ code: 'custom', message: "이미 존재하는 이메일임", path: ["email"], fatal: true });
+      return z.NEVER;
+    }
+  })
+  .refine(checkPassword, { message: "비밀번호가 일치하지 않음", path: ["confirmPassword"] })
+  ;
 
 export const createAccount = async (prevState: any, formData: FormData) => {
   const data = {
